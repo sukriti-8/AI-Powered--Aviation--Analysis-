@@ -82,6 +82,86 @@ if __name__ == "__main__":
 
     train, test, rul = load_data()
 
+    # ========================================================
+    # Sensor variability analysis
+    # ========================================================
+
+    sensor_columns = [
+        column
+        for column in train.columns
+        if column.startswith("sensor_")
+    ]
+
+    sensor_variance = train[sensor_columns].var()
+
+    print("\n===== SENSOR VARIANCE =====")
+    print(sensor_variance.sort_values())
+
+    # ========================================================
+    # Inspect sensors with very low variance
+    # ========================================================
+
+    low_variance_sensors = sensor_variance[
+        sensor_variance < 1e-5
+    ].index
+
+    print("\n===== LOW-VARIANCE SENSOR DETAILS =====")
+
+    for sensor in low_variance_sensors:
+        print(f"\n{sensor}")
+        print(f"  Variance: {train[sensor].var()}")
+        print(f"  Unique values: {train[sensor].nunique()}")
+        print(f"  Minimum: {train[sensor].min()}")
+        print(f"  Maximum: {train[sensor].max()}")
+        print(f"  Range: {train[sensor].max() - train[sensor].min()}")
+
+    # ========================================================
+    # Identify constant sensors
+    # ========================================================
+
+    print("\n===== CONSTANT / NEAR-CONSTANT SENSORS =====")
+
+    for sensor, variance in sensor_variance.sort_values().items():
+        if variance == 0:
+            print(f"{sensor}: variance = {variance}")
+
+    # ========================================================
+    # Remove sensors with only one unique value
+    # ========================================================
+
+    constant_sensors = [
+        sensor
+        for sensor in sensor_columns
+        if train[sensor].nunique() == 1
+    ]
+
+    print("\n===== REMOVING CONSTANT SENSORS =====")
+    print(constant_sensors)
+
+    train = train.drop(columns=constant_sensors)
+    test = test.drop(columns=constant_sensors)
+
+    print("\n===== SHAPES AFTER SENSOR REMOVAL =====")
+    print("Train shape:", train.shape)
+    print("Test shape:", test.shape)
+
+    # ========================================================
+    # Verify train and test columns match
+    # ========================================================
+
+    print("\n===== COLUMN CONSISTENCY CHECK =====")
+
+    train_columns = set(train.columns)
+    test_columns = set(test.columns)
+
+    print("Columns only in train:", train_columns - test_columns)
+    print("Columns only in test:", test_columns - train_columns)
+    print("Columns match:", train_columns == test_columns)
+
+    # ========================================================
+    # Display processed data
+    # ========================================================
+
     print("\n===== TRAIN DATA =====")
     print(train.head())
 
