@@ -4,8 +4,6 @@ from sklearn.preprocessing import StandardScaler
 
 
 # File paths
-
-
 TRAIN_PATH = "data/raw/train_FD001.txt"
 TEST_PATH = "data/raw/test_FD001.txt"
 RUL_PATH = "data/raw/RUL_FD001.txt"
@@ -13,8 +11,6 @@ RUL_PATH = "data/raw/RUL_FD001.txt"
 
 
 # Column names for NASA C-MAPSS FD001
-
-
 COLUMN_NAMES = [
     "unit",
     "cycle",
@@ -47,8 +43,6 @@ COLUMN_NAMES = [
 
 
 # Load the datasets
-
-
 def load_data():
 
     train = pd.read_csv(
@@ -77,15 +71,12 @@ def load_data():
 
 
 # Test the data loading
-
 if __name__ == "__main__":
 
     train, test, rul = load_data()
 
    
     # Sensor variability analysis
-  
-
     sensor_columns = [
         column
         for column in train.columns
@@ -99,8 +90,6 @@ if __name__ == "__main__":
 
   
     # Inspect sensors with very low variance
-  
-
     low_variance_sensors = sensor_variance[
         sensor_variance < 1e-5
     ].index
@@ -117,8 +106,6 @@ if __name__ == "__main__":
 
    
     # Identify constant sensors
-    
-
     print("\n===== CONSTANT / NEAR-CONSTANT SENSORS =====")
 
     for sensor, variance in sensor_variance.sort_values().items():
@@ -127,8 +114,6 @@ if __name__ == "__main__":
 
     
     # Remove sensors with only one unique value
-    
-
     constant_sensors = [
         sensor
         for sensor in sensor_columns
@@ -140,10 +125,8 @@ if __name__ == "__main__":
 
     train = train.drop(columns=constant_sensors)
     test = test.drop(columns=constant_sensors)
-        # ========================================================
+      
     # M5: NORMALIZATION
-    # ========================================================
-
     feature_columns = [
         column
         for column in train.columns
@@ -175,8 +158,6 @@ if __name__ == "__main__":
 
    
     # Verify train and test columns match
-    
-
     print("\n===== COLUMN CONSISTENCY CHECK =====")
 
     train_columns = set(train.columns)
@@ -186,10 +167,28 @@ if __name__ == "__main__":
     print("Columns only in test:", test_columns - train_columns)
     print("Columns match:", train_columns == test_columns)
 
+   
+    # M6: RUL TARGET GENERATION
+    RUL_MAX = 125
+
+    failure_cycles = train.groupby("unit")["cycle"].max() #create failure cycle and give every row its engine failure cycle
+
+    train["RUL"] = (
+        train["unit"].map(failure_cycles) - train["cycle"]
+    ).clip(upper=RUL_MAX)
+
+    print("\n===== RUL GENERATION =====")
+    print(train[["unit", "cycle", "RUL"]].head(10))
+
+    print("\n===== RUL RANGE =====")
+    print("Minimum RUL:", train["RUL"].min())
+    print("Maximum RUL:", train["RUL"].max())
+
+    print("\n===== RUL DISTRIBUTION CHECK =====")
+    print(train["RUL"].value_counts().sort_index().head(10))
+
     
     # Display processed data
-    
-
     print("\n===== TRAIN DATA =====")
     print(train.head())
 
