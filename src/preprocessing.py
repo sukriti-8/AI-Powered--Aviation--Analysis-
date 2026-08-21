@@ -414,3 +414,47 @@ if __name__ == "__main__":
 
     print("\n===== RUL SHAPE =====")
     print(rul.shape)
+
+    # M8: FINAL PIPELINE VALIDATION
+    print("\n===== M8 FINAL PIPELINE VALIDATION =====")
+
+    # Check missing values
+    train_missing = train.isnull().sum().sum()
+    test_missing = test.isnull().sum().sum()
+
+    print("\nMissing values")
+    print("Train:", train_missing)
+    print("Test:", test_missing)
+
+    # Check RUL range
+    print("\nRUL range")
+    print("Minimum:", train["RUL"].min())
+    print("Maximum:", train["RUL"].max())
+
+    # Check train/test input columns
+    train_input_columns = [
+        column for column in train.columns
+        if column != "RUL"
+    ]
+
+    test_input_columns = list(test.columns)
+
+    print("\nTrain/Test input columns match:")
+    print(
+        set(train_input_columns) == set(test_input_columns)
+    )
+
+    # Check LSTM sequence dimensions
+    print("\nLSTM sequence validation:")
+    print("X_lstm:", X_lstm.shape)
+    print("y_lstm:", y_lstm.shape)
+
+    # Final summary
+    print("\n===== PIPELINE VALIDATION SUMMARY =====")
+    print("Missing values:", train_missing == 0 and test_missing == 0)
+    print("RUL valid:", 0 <= train["RUL"].min() and train["RUL"].max() <= 125)
+    print(
+        "Train/Test inputs match:",
+        set(train_input_columns) == set(test_input_columns)
+    )
+    print("LSTM sequences valid:", X_lstm.shape[1] == 30)
