@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 # Change these paths if your files are somewhere else
 TRAIN_PATH = "data/raw/train_FD001.txt"
 TEST_PATH = "data/raw/test_FD001.txt"
