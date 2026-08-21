@@ -1,6 +1,6 @@
 import pandas as pd
+import numpy as np
 from sklearn.preprocessing import StandardScaler
-
 
 
 # File paths
@@ -88,7 +88,48 @@ if __name__ == "__main__":
 
         return df
 
+    def create_rf_features(df, sensor_columns, window=10):
+        df = df.copy()
+
+        for sensor in sensor_columns:
+            grouped = df.groupby("unit")[sensor]
+
+            df[f"{sensor}_rolling_mean"] = (
+                grouped.transform(
+                    lambda x: x.rolling(
+                        window=window,
+                        min_periods=1
+                    ).mean()
+                )
+            )
+
+            df[f"{sensor}_rolling_std"] = (
+                grouped.transform(
+                    lambda x: x.rolling(
+                        window=window,
+                        min_periods=1
+                    ).std().fillna(0)
+                )
+            )
+
+            df[f"{sensor}_rolling_slope"] = (
+                grouped.transform(
+                    lambda x: x.rolling(
+                        window=window,
+                        min_periods=2
+                    ).apply(
+                        lambda y: np.polyfit(
+                            range(len(y)), y, 1
+                        )[0],
+                        raw=True
+                    ).fillna(0)
+                )
+            )
+
+        return df
+
     train, test, rul = load_data()
+
 
    
     # Sensor variability analysis
@@ -224,7 +265,37 @@ if __name__ == "__main__":
             ["unit", "cycle", "sensor_2", "sensor_2_smooth"]
         ].head(10)
     )
-    
+
+        
+    # M7.2: RANDOM FOREST FEATURES
+    train = create_rf_features(
+        train,
+        sensor_columns,
+        window=10
+    )
+
+    test = create_rf_features(
+        test,
+        sensor_columns,
+        window=10
+    )
+
+    print("\n===== M7.2 RANDOM FOREST FEATURES =====")
+    print("Rolling window: 10 cycles")
+
+    print("\n===== RF FEATURE EXAMPLE =====")
+    print(
+        train[
+            [
+                "unit",
+                "cycle",
+                "sensor_2",
+                "sensor_2_rolling_mean",
+                "sensor_2_rolling_std",
+                "sensor_2_rolling_slope"
+            ]
+        ].head(15)
+    )
     # Display processed data
     print("\n===== TRAIN DATA =====")
     print(train.head())
