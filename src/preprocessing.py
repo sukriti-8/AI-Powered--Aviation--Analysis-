@@ -72,6 +72,21 @@ def load_data():
 
 # Test the data loading
 if __name__ == "__main__":
+    def smooth_sensors(df, sensor_columns, window=5):
+        df = df.copy()
+
+        for sensor in sensor_columns:
+            df[f"{sensor}_smooth"] = (
+                df.groupby("unit")[sensor] #smooth each engine's timeline independently 
+                .transform(
+                    lambda x: x.rolling(
+                        window=window, #moving window of no. of cycles
+                        min_periods=1 #at beginning of an engine, wdh to wait until no. of rolling window for observation to exist 
+                    ).mean()
+                )
+            )
+
+        return df
 
     train, test, rul = load_data()
 
@@ -187,6 +202,28 @@ if __name__ == "__main__":
     print("\n===== RUL DISTRIBUTION CHECK =====")
     print(train["RUL"].value_counts().sort_index().head(10))
 
+    
+    # M7.1: SENSOR SMOOTHING
+    sensor_columns = [
+        column
+        for column in train.columns
+        if column.startswith("sensor_")
+        and not column.endswith("_smooth")
+    ]
+
+    train = smooth_sensors(train, sensor_columns, window=5)
+    test = smooth_sensors(test, sensor_columns, window=5)
+
+    print("\n===== M7.1 SENSOR SMOOTHING =====")
+    print("Smoothing window: 5 cycles")
+    print("Sensors smoothed:", sensor_columns)
+
+    print("\n===== RAW VS SMOOTHED =====")
+    print(
+        train[
+            ["unit", "cycle", "sensor_2", "sensor_2_smooth"]
+        ].head(10)
+    )
     
     # Display processed data
     print("\n===== TRAIN DATA =====")
