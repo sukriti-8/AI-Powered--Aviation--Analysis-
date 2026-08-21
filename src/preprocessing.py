@@ -42,7 +42,7 @@ COLUMN_NAMES = [
 
 
 
-# Load the datasets
+# Load datasets
 def load_data():
 
     train = pd.read_csv(
@@ -69,70 +69,104 @@ def load_data():
     return train, test, rul
 
 
+# M7.1: Sensor smoothing
+def smooth_sensors(df, sensor_columns, window=5):
 
-# Test the data loading
+    df = df.copy()
+
+    for sensor in sensor_columns:
+
+        df[f"{sensor}_smooth"] = (
+            df.groupby("unit")[sensor]
+            .transform(
+                lambda x: x.rolling(
+                    window=window,
+                    min_periods=1
+                ).mean()
+            )
+        )
+
+    return df
+
+
+# M7.2: Random Forest feature generation
+def create_rf_features(df, sensor_columns, window=10):
+
+    df = df.copy()
+
+    for sensor in sensor_columns:
+
+        grouped = df.groupby("unit")[sensor]
+
+        # Rolling mean
+        df[f"{sensor}_rolling_mean"] = (
+            grouped.transform(
+                lambda x: x.rolling(
+                    window=window,
+                    min_periods=1
+                ).mean()
+            )
+        )
+
+        # Rolling standard deviation
+        df[f"{sensor}_rolling_std"] = (
+            grouped.transform(
+                lambda x: x.rolling(
+                    window=window,
+                    min_periods=1
+                ).std().fillna(0)
+            )
+        )
+
+        # Rolling slope
+        df[f"{sensor}_rolling_slope"] = (
+            grouped.transform(
+                lambda x: x.rolling(
+                    window=window,
+                    min_periods=2
+                ).apply(
+                    lambda y: np.polyfit(
+                        range(len(y)),
+                        y,
+                        1
+                    )[0],
+                    raw=True
+                ).fillna(0)
+            )
+        )
+
+    return df
+
+def create_lstm_sequences(df, feature_columns, window=30): #sequence function (for 100 cycles a window of 30 cycle is created)
+    sequences = []
+    targets = []
+
+    for unit, engine_data in df.groupby("unit"):
+
+        engine_data = engine_data.sort_values("cycle")
+
+        features = engine_data[feature_columns].to_numpy()
+        rul = engine_data["RUL"].to_numpy()
+
+        for i in range(len(engine_data) - window + 1):
+            sequences.append(
+                features[i:i + window]
+            )
+
+            targets.append(
+                rul[i + window - 1]
+            )
+
+    return np.array(sequences), np.array(targets)
+
+# Main pipeline
 if __name__ == "__main__":
-    def smooth_sensors(df, sensor_columns, window=5):
-        df = df.copy()
-
-        for sensor in sensor_columns:
-            df[f"{sensor}_smooth"] = (
-                df.groupby("unit")[sensor] #smooth each engine's timeline independently 
-                .transform(
-                    lambda x: x.rolling(
-                        window=window, #moving window of no. of cycles
-                        min_periods=1 #at beginning of an engine, wdh to wait until no. of rolling window for observation to exist 
-                    ).mean()
-                )
-            )
-
-        return df
-
-    def create_rf_features(df, sensor_columns, window=10):
-        df = df.copy()
-
-        for sensor in sensor_columns:
-            grouped = df.groupby("unit")[sensor]
-
-            df[f"{sensor}_rolling_mean"] = (
-                grouped.transform(
-                    lambda x: x.rolling(
-                        window=window,
-                        min_periods=1
-                    ).mean()
-                )
-            )
-
-            df[f"{sensor}_rolling_std"] = (
-                grouped.transform(
-                    lambda x: x.rolling(
-                        window=window,
-                        min_periods=1
-                    ).std().fillna(0)
-                )
-            )
-
-            df[f"{sensor}_rolling_slope"] = (
-                grouped.transform(
-                    lambda x: x.rolling(
-                        window=window,
-                        min_periods=2
-                    ).apply(
-                        lambda y: np.polyfit(
-                            range(len(y)), y, 1
-                        )[0],
-                        raw=True
-                    ).fillna(0)
-                )
-            )
-
-        return df
 
     train, test, rul = load_data()
 
 
-   
-    # Sensor variability analysis
+    
+    # M4: Remove constant sensors
     sensor_columns = [
         column
         for column in train.columns
@@ -144,8 +178,6 @@ if __name__ == "__main__":
     print("\n===== SENSOR VARIANCE =====")
     print(sensor_variance.sort_values())
 
-  
-    # Inspect sensors with very low variance
     low_variance_sensors = sensor_variance[
         sensor_variance < 1e-5
     ].index
@@ -153,6 +185,7 @@ if __name__ == "__main__":
     print("\n===== LOW-VARIANCE SENSOR DETAILS =====")
 
     for sensor in low_variance_sensors:
+
         print(f"\n{sensor}")
         print(f"  Variance: {train[sensor].var()}")
         print(f"  Unique values: {train[sensor].nunique()}")
@@ -160,16 +193,13 @@ if __name__ == "__main__":
         print(f"  Maximum: {train[sensor].max()}")
         print(f"  Range: {train[sensor].max() - train[sensor].min()}")
 
-   
-    # Identify constant sensors
     print("\n===== CONSTANT / NEAR-CONSTANT SENSORS =====")
 
     for sensor, variance in sensor_variance.sort_values().items():
+
         if variance == 0:
             print(f"{sensor}: variance = {variance}")
 
-    
-    # Remove sensors with only one unique value
     constant_sensors = [
         sensor
         for sensor in sensor_columns
@@ -181,20 +211,29 @@ if __name__ == "__main__":
 
     train = train.drop(columns=constant_sensors)
     test = test.drop(columns=constant_sensors)
-      
-    # M5: NORMALIZATION
+
+
+    
+    # M5: Normalization
+   
     feature_columns = [
         column
         for column in train.columns
-        if column.startswith("setting_") or column.startswith("sensor_")
+        if column.startswith("setting_")
+        or column.startswith("sensor_")
     ]
 
     scaler = StandardScaler()
 
     scaler.fit(train[feature_columns])
 
-    train[feature_columns] = scaler.transform(train[feature_columns])
-    test[feature_columns] = scaler.transform(test[feature_columns])
+    train[feature_columns] = scaler.transform(
+        train[feature_columns]
+    )
+
+    test[feature_columns] = scaler.transform(
+        test[feature_columns]
+    )
 
     print("\n===== NORMALIZATION =====")
     print("Features normalized:", feature_columns)
@@ -212,8 +251,9 @@ if __name__ == "__main__":
     print("Train shape:", train.shape)
     print("Test shape:", test.shape)
 
+
    
-    # Verify train and test columns match
+    # Column consistency check
     print("\n===== COLUMN CONSISTENCY CHECK =====")
 
     train_columns = set(train.columns)
@@ -223,14 +263,16 @@ if __name__ == "__main__":
     print("Columns only in test:", test_columns - train_columns)
     print("Columns match:", train_columns == test_columns)
 
-   
-    # M6: RUL TARGET GENERATION
+
+    # M6: RUL target generation
+    
     RUL_MAX = 125
 
-    failure_cycles = train.groupby("unit")["cycle"].max() #create failure cycle and give every row its engine failure cycle
+    failure_cycles = train.groupby("unit")["cycle"].max()
 
     train["RUL"] = (
-        train["unit"].map(failure_cycles) - train["cycle"]
+        train["unit"].map(failure_cycles)
+        - train["cycle"]
     ).clip(upper=RUL_MAX)
 
     print("\n===== RUL GENERATION =====")
@@ -241,10 +283,16 @@ if __name__ == "__main__":
     print("Maximum RUL:", train["RUL"].max())
 
     print("\n===== RUL DISTRIBUTION CHECK =====")
-    print(train["RUL"].value_counts().sort_index().head(10))
+    print(
+        train["RUL"]
+        .value_counts()
+        .sort_index()
+        .head(10)
+    )
 
-    
-    # M7.1: SENSOR SMOOTHING
+
+  
+    # M7.1: Sensor smoothing
     sensor_columns = [
         column
         for column in train.columns
@@ -252,22 +300,37 @@ if __name__ == "__main__":
         and not column.endswith("_smooth")
     ]
 
-    train = smooth_sensors(train, sensor_columns, window=5)
-    test = smooth_sensors(test, sensor_columns, window=5)
+    train = smooth_sensors(
+        train,
+        sensor_columns,
+        window=5
+    )
+
+    test = smooth_sensors(
+        test,
+        sensor_columns,
+        window=5
+    )
 
     print("\n===== M7.1 SENSOR SMOOTHING =====")
     print("Smoothing window: 5 cycles")
     print("Sensors smoothed:", sensor_columns)
 
     print("\n===== RAW VS SMOOTHED =====")
+
     print(
         train[
-            ["unit", "cycle", "sensor_2", "sensor_2_smooth"]
+            [
+                "unit",
+                "cycle",
+                "sensor_2",
+                "sensor_2_smooth"
+            ]
         ].head(10)
     )
 
-        
-    # M7.2: RANDOM FOREST FEATURES
+
+    # M7.2: Random Forest features
     train = create_rf_features(
         train,
         sensor_columns,
@@ -284,6 +347,7 @@ if __name__ == "__main__":
     print("Rolling window: 10 cycles")
 
     print("\n===== RF FEATURE EXAMPLE =====")
+
     print(
         train[
             [
@@ -296,7 +360,40 @@ if __name__ == "__main__":
             ]
         ].head(15)
     )
-    # Display processed data
+
+
+    # M7.3: LSTM SEQUENCES
+    lstm_features = [
+        column
+        for column in train.columns
+        if column.startswith("setting_")
+        or (
+            column.startswith("sensor_")
+            and not column.endswith("_smooth")
+            and "_rolling_" not in column
+        )
+    ]
+
+    X_lstm, y_lstm = create_lstm_sequences(
+        train,
+        lstm_features,
+        window=30
+    )
+
+    print("\n===== M7.3 LSTM SEQUENCES =====")
+    print("Sequence window: 30 cycles")
+    print("LSTM features:", lstm_features)
+
+    print("\n===== LSTM SHAPES =====")
+    print("X_lstm shape:", X_lstm.shape)
+    print("y_lstm shape:", y_lstm.shape)
+
+    print("\n===== FIRST LSTM TARGET =====")
+    print("Target RUL:", y_lstm[0])
+
+
+    
+    # Final processed data inspection
     print("\n===== TRAIN DATA =====")
     print(train.head())
 
