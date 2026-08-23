@@ -160,7 +160,7 @@ def create_lstm_sequences(df, feature_columns, window=30): #sequence function (f
     return np.array(sequences), np.array(targets)
 
 # Main pipeline
-if __name__ == "__main__":
+def preprocess_data():
 
     train, test, rul = load_data()
 
@@ -458,3 +458,7 @@ if __name__ == "__main__":
         set(train_input_columns) == set(test_input_columns)
     )
     print("LSTM sequences valid:", X_lstm.shape[1] == 30)
+    return train, test, rul , X_lstm, y_lstm 
+
+if __name__ == "__main__":
+    preprocess_data()
