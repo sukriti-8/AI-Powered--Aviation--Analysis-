@@ -5,9 +5,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV
 
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+from src.losses import phm08_loss
 
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Input
+from tensorflow.keras.callbacks import EarlyStopping
 
 
 # RANDOM FOREST
@@ -99,10 +101,7 @@ def predict_rul(model, X):
     predictions = model.predict(X)
 
     return predictions
-
-
-# LSTM
-# Split LSTM sequences by engine
+# Split LSTM sequences by engine.
 # This prevents sequences from the same engine
 # appearing in both training and validation data.
 def split_lstm_data(X_lstm, y_lstm, lstm_units):
@@ -137,44 +136,59 @@ def split_lstm_data(X_lstm, y_lstm, lstm_units):
     X_val_lstm = X_lstm[validation_mask]
     y_val_lstm = y_lstm[validation_mask]
 
+    # Keep validation engine IDs
+    validation_units_for_sequences = lstm_units[validation_mask]
+
     return (
         X_train_lstm,
         X_val_lstm,
         y_train_lstm,
-        y_val_lstm
+        y_val_lstm,
+        validation_units_for_sequences
     )
 
 
-# Build baseline LSTM model
+# Build LSTM model
 #
 # Input:
 # 30 time steps × 18 features
 #
 # Output:
 # 1 predicted RUL value
-def build_lstm_model(input_shape):
+#
+# loss_type:
+# "mse"   → standard baseline loss
+# "phm08" → PHM08 training-loss experiment
+def build_lstm_model(input_shape, loss_type="mse"):
 
     model = Sequential([
 
+        # Input = 30 cycles × 18 features
+        Input(shape=input_shape),
+
         # LSTM learns patterns across the 30 cycles
-        LSTM(
-            64,
-            input_shape=input_shape
-        ),
+        LSTM(64),
 
         # One output = predicted RUL
         Dense(1)
     ])
 
-    # Adam updates the model's weights during training
-    # MSE measures the prediction error
+    # Select the loss function
+    if loss_type == "phm08":
+        loss_function = phm08_loss
+    else:
+        loss_function = "mse"
+
+    # Adam updates the model weights
     model.compile(
         optimizer="adam",
-        loss="mse"
+        loss=loss_function
     )
 
     return model
-# Train the LSTM model
+
+
+# Train the LSTM model with early stopping
 def train_lstm_model(
     model,
     X_train,
@@ -183,12 +197,26 @@ def train_lstm_model(
     y_validation
 ):
 
+    early_stopping = EarlyStopping(
+        monitor="val_loss",
+        patience=3,
+        restore_best_weights=True
+    )
+
     history = model.fit(
         X_train,
         y_train,
         validation_data=(X_validation, y_validation),
+
+        # Maximum number of training passes
         epochs=20,
+
+        # Process 64 sequences at a time
         batch_size=64,
+
+        # Stop when validation loss stops improving
+        callbacks=[early_stopping],
+
         verbose=1
     )
 
