@@ -1,21 +1,34 @@
 import joblib
+import numpy as np
+
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import GridSearchCV
+
+from src.losses import phm08_loss
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Input
+from tensorflow.keras.callbacks import EarlyStopping
 
 
+# RANDOM FOREST
 def split_data(train):
 
     X = train.drop(columns=["RUL", "unit"])
     y = train["RUL"]
 
     train_units, validation_units = train_test_split(
-        train["unit"].unique(), #unit == engine number 
-        test_size=0.2, #80% train, 20% validation 
-        random_state=42 #same engine split 
+        train["unit"].unique(),  # unit = engine number
+        test_size=0.2,           # 80% train, 20% validation
+        random_state=42          # same engine split every time
     )
-#create 2 datasets
+
+    # Create two datasets
     train_data = train[train["unit"].isin(train_units)]
     validation_data = train[train["unit"].isin(validation_units)]
-#x = input features, y = target 
+
+    # X = input features, y = target
     X_train = train_data.drop(columns=["RUL", "unit"])
     y_train = train_data["RUL"]
 
@@ -24,13 +37,12 @@ def split_data(train):
 
     return X_train, X_validation, y_train, y_validation
 
-from sklearn.ensemble import RandomForestRegressor
 
-#baseline rf 
+# Baseline Random Forest
 def train_random_forest(X_train, y_train):
 
     model = RandomForestRegressor(
-        n_estimators=100, #built 100 decision tress 
+        n_estimators=100,       # build 100 decision trees
         random_state=42,
         n_jobs=-1
     )
@@ -39,9 +51,8 @@ def train_random_forest(X_train, y_train):
 
     return model
 
-from sklearn.model_selection import GridSearchCV
 
-
+# Random Forest hyperparameter tuning
 def tune_random_forest(X_train, y_train):
 
     model = RandomForestRegressor(
@@ -55,11 +66,13 @@ def tune_random_forest(X_train, y_train):
         "min_samples_split": [2, 5]
     }
 
+    # GridSearchCV trains several versions of RF
+    # using different hyperparameter combinations
     grid_search = GridSearchCV(
         estimator=model,
         param_grid=parameters,
-        cv=3,
-        scoring="neg_mean_absolute_error",
+        cv=3,                              # 3-fold cross-validation
+        scoring="neg_mean_absolute_error", # choose using MAE
         n_jobs=-1
     )
 
@@ -67,18 +80,144 @@ def tune_random_forest(X_train, y_train):
 
     return grid_search.best_estimator_, grid_search.best_params_
 
+
+# Save Random Forest model
 def save_model(model, path="models/random_forest.pkl"):
 
     joblib.dump(model, path)
 
     print(f"Model saved to: {path}")
+
+
+# Load Random Forest model
 def load_model(path="models/random_forest.pkl"):
 
     return joblib.load(path)
 
 
+# Predict RUL using Random Forest
 def predict_rul(model, X):
 
     predictions = model.predict(X)
 
     return predictions
+# Split LSTM sequences by engine.
+# This prevents sequences from the same engine
+# appearing in both training and validation data.
+def split_lstm_data(X_lstm, y_lstm, lstm_units):
+
+    # Get all unique engine numbers
+    unique_units = np.unique(lstm_units)
+
+    # Split engines into 80% training and 20% validation
+    train_units, validation_units = train_test_split(
+        unique_units,
+        test_size=0.2,
+        random_state=42
+    )
+
+    # Find sequences belonging to training engines
+    train_mask = np.isin(
+        lstm_units,
+        train_units
+    )
+
+    # Find sequences belonging to validation engines
+    validation_mask = np.isin(
+        lstm_units,
+        validation_units
+    )
+
+    # Create training sequences
+    X_train_lstm = X_lstm[train_mask]
+    y_train_lstm = y_lstm[train_mask]
+
+    # Create validation sequences
+    X_val_lstm = X_lstm[validation_mask]
+    y_val_lstm = y_lstm[validation_mask]
+
+    # Keep validation engine IDs
+    validation_units_for_sequences = lstm_units[validation_mask]
+
+    return (
+        X_train_lstm,
+        X_val_lstm,
+        y_train_lstm,
+        y_val_lstm,
+        validation_units_for_sequences
+    )
+
+
+# Build LSTM model
+#
+# Input:
+# 30 time steps × 18 features
+#
+# Output:
+# 1 predicted RUL value
+#
+# loss_type:
+# "mse"   → standard baseline loss
+# "phm08" → PHM08 training-loss experiment
+def build_lstm_model(input_shape, loss_type="mse"):
+
+    model = Sequential([
+
+        # Input = 30 cycles × 18 features
+        Input(shape=input_shape),
+
+        # LSTM learns patterns across the 30 cycles
+        LSTM(64),
+
+        # One output = predicted RUL
+        Dense(1)
+    ])
+
+    # Select the loss function
+    if loss_type == "phm08":
+        loss_function = phm08_loss
+    else:
+        loss_function = "mse"
+
+    # Adam updates the model weights
+    model.compile(
+        optimizer="adam",
+        loss=loss_function
+    )
+
+    return model
+
+
+# Train the LSTM model with early stopping
+def train_lstm_model(
+    model,
+    X_train,
+    y_train,
+    X_validation,
+    y_validation
+):
+
+    early_stopping = EarlyStopping(
+        monitor="val_loss",
+        patience=3,
+        restore_best_weights=True
+    )
+
+    history = model.fit(
+        X_train,
+        y_train,
+        validation_data=(X_validation, y_validation),
+
+        # Maximum number of training passes
+        epochs=20,
+
+        # Process 64 sequences at a time
+        batch_size=64,
+
+        # Stop when validation loss stops improving
+        callbacks=[early_stopping],
+
+        verbose=1
+    )
+
+    return history
