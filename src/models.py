@@ -1,3 +1,4 @@
+import joblib
 from sklearn.model_selection import train_test_split
 
 
@@ -65,3 +66,9 @@ def tune_random_forest(X_train, y_train):
     grid_search.fit(X_train, y_train)
 
     return grid_search.best_estimator_, grid_search.best_params_
+
+def save_model(model, path="models/random_forest.pkl"):
+
+    joblib.dump(model, path)
+
+    print(f"Model saved to: {path}")
