@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 
+
 # File paths
 TRAIN_PATH = "data/raw/train_FD001.txt"
 TEST_PATH = "data/raw/test_FD001.txt"
