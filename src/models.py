@@ -174,3 +174,22 @@ def build_lstm_model(input_shape):
     )
 
     return model
+# Train the LSTM model
+def train_lstm_model(
+    model,
+    X_train,
+    y_train,
+    X_validation,
+    y_validation
+):
+
+    history = model.fit(
+        X_train,
+        y_train,
+        validation_data=(X_validation, y_validation),
+        epochs=20,
+        batch_size=64,
+        verbose=1
+    )
+
+    return history
