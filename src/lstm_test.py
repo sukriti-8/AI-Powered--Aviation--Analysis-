@@ -13,6 +13,8 @@ from src.models import (
 
 from src.evaluate import calculate_phm08_score
 
+from src.visualization import show_project_visualizations
+
 
 # ------------------------------------------------------------
 # Create the final 30-cycle sequence for each test engine
@@ -168,7 +170,23 @@ if __name__ == "__main__":
 
 
     # ========================================================
-    # 10. CALCULATE MAE
+    # 10. SHOW ALL THREE PROJECT VISUALIZATIONS
+    #
+    # Graph 1: RUL distribution
+    # Graph 2: LSTM training vs validation loss
+    # Graph 3: Actual vs predicted RUL
+    # ========================================================
+
+    show_project_visualizations(
+        train,
+        history,
+        actual_rul,
+        predictions
+    )
+
+
+    # ========================================================
+    # 11. CALCULATE MAE
     # ========================================================
 
     mae = mean_absolute_error(
@@ -178,7 +196,7 @@ if __name__ == "__main__":
 
 
     # ========================================================
-    # 11. CALCULATE RMSE
+    # 12. CALCULATE RMSE
     # ========================================================
 
     rmse = np.sqrt(
@@ -190,7 +208,7 @@ if __name__ == "__main__":
 
 
     # ========================================================
-    # 12. CALCULATE PHM08 SCORE
+    # 13. CALCULATE PHM08 SCORE
     # ========================================================
 
     phm08 = calculate_phm08_score(
@@ -200,7 +218,7 @@ if __name__ == "__main__":
 
 
     # ========================================================
-    # 13. SAVE FINAL LSTM MODEL
+    # 14. SAVE FINAL LSTM MODEL
     # ========================================================
 
     os.makedirs(
@@ -214,7 +232,7 @@ if __name__ == "__main__":
 
 
     # ========================================================
-    # 14. FINAL RESULTS
+    # 15. FINAL RESULTS
     # ========================================================
 
     print("\n===== FINAL TEST LSTM =====")
