@@ -8,14 +8,14 @@ def split_data(train):
     y = train["RUL"]
 
     train_units, validation_units = train_test_split(
-        train["unit"].unique(),
-        test_size=0.2,
-        random_state=42
+        train["unit"].unique(), #unit == engine number 
+        test_size=0.2, #80% train, 20% validation 
+        random_state=42 #same engine split 
     )
-
+#create 2 datasets
     train_data = train[train["unit"].isin(train_units)]
     validation_data = train[train["unit"].isin(validation_units)]
-
+#x = input features, y = target 
     X_train = train_data.drop(columns=["RUL", "unit"])
     y_train = train_data["RUL"]
 
@@ -26,11 +26,11 @@ def split_data(train):
 
 from sklearn.ensemble import RandomForestRegressor
 
-
+#baseline rf 
 def train_random_forest(X_train, y_train):
 
     model = RandomForestRegressor(
-        n_estimators=100,
+        n_estimators=100, #built 100 decision tress 
         random_state=42,
         n_jobs=-1
     )
@@ -72,3 +72,13 @@ def save_model(model, path="models/random_forest.pkl"):
     joblib.dump(model, path)
 
     print(f"Model saved to: {path}")
+def load_model(path="models/random_forest.pkl"):
+
+    return joblib.load(path)
+
+
+def predict_rul(model, X):
+
+    predictions = model.predict(X)
+
+    return predictions
