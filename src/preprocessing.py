@@ -483,7 +483,7 @@ def preprocess_data():
         X_lstm.shape[1] == 30
     )
 
-    return train, test, rul, X_lstm, y_lstm
+    return train, test, rul, X_lstm, y_lstm, lstm_units
 
 
 if __name__ == "__main__":

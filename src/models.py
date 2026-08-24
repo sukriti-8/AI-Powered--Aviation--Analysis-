@@ -1,5 +1,7 @@
 import joblib
+import numpy as np
 from sklearn.model_selection import train_test_split
+
 
 
 def split_data(train):
@@ -82,3 +84,44 @@ def predict_rul(model, X):
     predictions = model.predict(X)
 
     return predictions
+# LSTM train-validation split
+# Split by engine so sequences from the same engine
+# do not appear in both training and validation data.
+def split_lstm_data(X_lstm, y_lstm, lstm_units):
+
+    # Get all unique engine numbers
+    unique_units = np.unique(lstm_units)
+
+    # Split engines into 80% training and 20% validation
+    train_units, validation_units = train_test_split(
+        unique_units,
+        test_size=0.2,
+        random_state=42
+    )
+
+    # Find sequences belonging to training engines
+    train_mask = np.isin(
+        lstm_units,
+        train_units
+    )
+
+    # Find sequences belonging to validation engines
+    validation_mask = np.isin(
+        lstm_units,
+        validation_units
+    )
+
+    # Create training sequences
+    X_train_lstm = X_lstm[train_mask]
+    y_train_lstm = y_lstm[train_mask]
+
+    # Create validation sequences
+    X_val_lstm = X_lstm[validation_mask]
+    y_val_lstm = y_lstm[validation_mask]
+
+    return (
+        X_train_lstm,
+        X_val_lstm,
+        y_train_lstm,
+        y_val_lstm
+    )
