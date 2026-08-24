@@ -41,7 +41,7 @@ def train_random_forest(X_train, y_train):
 
 from sklearn.model_selection import GridSearchCV
 
-
+#another rf 
 def tune_random_forest(X_train, y_train):
 
     model = RandomForestRegressor(
@@ -54,12 +54,12 @@ def tune_random_forest(X_train, y_train):
         "max_depth": [None, 20],
         "min_samples_split": [2, 5]
     }
-
+#grid seacrh CV - train several versions of rf using diff hyperparameters combination nd compare them 
     grid_search = GridSearchCV(
         estimator=model,
         param_grid=parameters,
-        cv=3,
-        scoring="neg_mean_absolute_error",
+        cv=3, #evaluates teh different parameter using cross validation in tuning process
+        scoring="neg_mean_absolute_error", #to select the best model based on score
         n_jobs=-1
     )
 

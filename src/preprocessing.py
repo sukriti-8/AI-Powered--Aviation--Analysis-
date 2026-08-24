@@ -9,7 +9,6 @@ TEST_PATH = "data/raw/test_FD001.txt"
 RUL_PATH = "data/raw/RUL_FD001.txt"
 
 
-
 # Column names for NASA C-MAPSS FD001
 COLUMN_NAMES = [
     "unit",
@@ -39,7 +38,6 @@ COLUMN_NAMES = [
     "sensor_20",
     "sensor_21",
 ]
-
 
 
 # Load datasets
@@ -137,9 +135,13 @@ def create_rf_features(df, sensor_columns, window=10):
 
     return df
 
-def create_lstm_sequences(df, feature_columns, window=30): #sequence function (for 100 cycles a window of 30 cycle is created)
+
+# LSTM sequence creation
+def create_lstm_sequences(df, feature_columns, window=30):
+
     sequences = []
     targets = []
+    units = []
 
     for unit, engine_data in df.groupby("unit"):
 
@@ -149,6 +151,7 @@ def create_lstm_sequences(df, feature_columns, window=30): #sequence function (f
         rul = engine_data["RUL"].to_numpy()
 
         for i in range(len(engine_data) - window + 1):
+
             sequences.append(
                 features[i:i + window]
             )
@@ -157,7 +160,15 @@ def create_lstm_sequences(df, feature_columns, window=30): #sequence function (f
                 rul[i + window - 1]
             )
 
-    return np.array(sequences), np.array(targets)
+            # Store the engine number for this sequence
+            units.append(unit)
+
+    return (
+        np.array(sequences),
+        np.array(targets),
+        np.array(units)
+    )
+
 
 # Main pipeline
 def preprocess_data():
@@ -165,7 +176,6 @@ def preprocess_data():
     train, test, rul = load_data()
 
 
-    
     # M4: Remove constant sensors
     sensor_columns = [
         column
@@ -213,9 +223,8 @@ def preprocess_data():
     test = test.drop(columns=constant_sensors)
 
 
-    
     # M5: Normalization
-   
+
     feature_columns = [
         column
         for column in train.columns
@@ -252,7 +261,6 @@ def preprocess_data():
     print("Test shape:", test.shape)
 
 
-   
     # Column consistency check
     print("\n===== COLUMN CONSISTENCY CHECK =====")
 
@@ -265,7 +273,7 @@ def preprocess_data():
 
 
     # M6: RUL target generation
-    
+
     RUL_MAX = 125
 
     failure_cycles = train.groupby("unit")["cycle"].max()
@@ -291,7 +299,6 @@ def preprocess_data():
     )
 
 
-  
     # M7.1: Sensor smoothing
     sensor_columns = [
         column
@@ -374,7 +381,7 @@ def preprocess_data():
         )
     ]
 
-    X_lstm, y_lstm = create_lstm_sequences(
+    X_lstm, y_lstm, lstm_units = create_lstm_sequences(
         train,
         lstm_features,
         window=30
@@ -387,12 +394,14 @@ def preprocess_data():
     print("\n===== LSTM SHAPES =====")
     print("X_lstm shape:", X_lstm.shape)
     print("y_lstm shape:", y_lstm.shape)
+    print("lstm_units shape:", lstm_units.shape)
+
+    print("Unique engines:", len(np.unique(lstm_units)))
 
     print("\n===== FIRST LSTM TARGET =====")
     print("Target RUL:", y_lstm[0])
 
 
-    
     # Final processed data inspection
     print("\n===== TRAIN DATA =====")
     print(train.head())
@@ -414,6 +423,7 @@ def preprocess_data():
 
     print("\n===== RUL SHAPE =====")
     print(rul.shape)
+
 
     # M8: FINAL PIPELINE VALIDATION
     print("\n===== M8 FINAL PIPELINE VALIDATION =====")
@@ -448,17 +458,33 @@ def preprocess_data():
     print("\nLSTM sequence validation:")
     print("X_lstm:", X_lstm.shape)
     print("y_lstm:", y_lstm.shape)
+    print("LSTM units:", lstm_units.shape)
 
     # Final summary
     print("\n===== PIPELINE VALIDATION SUMMARY =====")
-    print("Missing values:", train_missing == 0 and test_missing == 0)
-    print("RUL valid:", 0 <= train["RUL"].min() and train["RUL"].max() <= 125)
+    print(
+        "Missing values:",
+        train_missing == 0 and test_missing == 0
+    )
+
+    print(
+        "RUL valid:",
+        0 <= train["RUL"].min()
+        and train["RUL"].max() <= 125
+    )
+
     print(
         "Train/Test inputs match:",
         set(train_input_columns) == set(test_input_columns)
     )
-    print("LSTM sequences valid:", X_lstm.shape[1] == 30)
-    return train, test, rul , X_lstm, y_lstm 
+
+    print(
+        "LSTM sequences valid:",
+        X_lstm.shape[1] == 30
+    )
+
+    return train, test, rul, X_lstm, y_lstm
+
 
 if __name__ == "__main__":
     preprocess_data()
