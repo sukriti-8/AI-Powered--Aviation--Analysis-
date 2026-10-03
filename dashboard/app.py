@@ -14,6 +14,10 @@ import joblib
 from src.preprocessing import preprocess_data
 
 
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
+
 st.set_page_config(
     page_title="AI-Powered Aviation Analytics",
     page_icon="✈️",
@@ -51,8 +55,13 @@ def load_lstm_model():
     return tf.keras.models.load_model(
         model_path,
         compile=False
-    ) 
-#rf
+    )
+
+
+# =========================================================
+# LOAD SAVED RANDOM FOREST MODEL
+# =========================================================
+
 @st.cache_resource
 def load_rf_model():
     """
@@ -118,6 +127,32 @@ def create_engine_sequence(
 
 
 # =========================================================
+# MAINTENANCE STATUS
+# =========================================================
+
+def get_maintenance_status(predicted_rul):
+    """
+    Convert predicted RUL into a simple dashboard
+    maintenance status.
+
+    These are project interpretation rules and are
+    NOT official aviation maintenance thresholds.
+    """
+
+    if predicted_rul > 50:
+        return "Healthy"
+
+    elif predicted_rul >= 30:
+        return "Monitor"
+
+    elif predicted_rul >= 10:
+        return "Maintenance Recommended"
+
+    else:
+        return "Critical"
+
+
+# =========================================================
 # HEADER
 # =========================================================
 
@@ -137,7 +172,7 @@ st.write(
 
 
 # =========================================================
-# LOAD DATA AND MODEL
+# LOAD DATA AND MODELS
 # =========================================================
 
 with st.spinner(
@@ -178,7 +213,7 @@ lstm_features = [
 # =========================================================
 
 st.success(
-    "NASA C-MAPSS FD001 data and saved LSTM model loaded successfully."
+    "NASA C-MAPSS FD001 data and saved trained models loaded successfully."
 )
 
 col1, col2, col3, col4 = st.columns(4)
@@ -203,7 +238,7 @@ with col3:
 
 with col4:
     st.metric(
-        "Model",
+        "Primary Model",
         "LSTM"
     )
 
@@ -222,10 +257,12 @@ selected_engine = st.selectbox(
     "Select an aircraft engine",
     engine_ids
 )
+
 selected_model = st.selectbox(
     "Select prediction model",
     ["LSTM", "Random Forest"]
 )
+
 
 # =========================================================
 # SELECT ENGINE DATA
@@ -318,11 +355,21 @@ else:
         "Existing engineered Random Forest features"
     )
 
+
+# =========================================================
+# MAINTENANCE STATUS
+# =========================================================
+
+maintenance_status = get_maintenance_status(
+    predicted_rul
+)
+
+
 # =========================================================
 # ENGINE INFORMATION
 # =========================================================
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
 
@@ -345,6 +392,53 @@ with col3:
         f"{predicted_rul:.2f} cycles"
     )
 
+with col4:
+
+    st.metric(
+        "Maintenance Status",
+        maintenance_status
+    )
+
+
+# =========================================================
+# MAINTENANCE STATUS MESSAGE
+# =========================================================
+
+if maintenance_status == "Healthy":
+
+    st.success(
+        f"Engine {selected_engine} is currently classified as "
+        "Healthy based on the predicted RUL."
+    )
+
+elif maintenance_status == "Monitor":
+
+    st.warning(
+        f"Engine {selected_engine} is classified as Monitor. "
+        "The predicted RUL suggests continued observation."
+    )
+
+elif maintenance_status == "Maintenance Recommended":
+
+    st.warning(
+        f"Engine {selected_engine} is classified as "
+        "Maintenance Recommended based on the predicted RUL."
+    )
+
+else:
+
+    st.error(
+        f"Engine {selected_engine} is classified as Critical. "
+        "The predicted RUL is below 10 cycles."
+    )
+
+
+st.caption(
+    "Note: These status categories are dashboard interpretation "
+    "rules for this project. They are not official aviation "
+    "maintenance limits or regulatory thresholds."
+)
+
 
 # =========================================================
 # PREDICTION EXPLANATION
@@ -364,7 +458,7 @@ st.info(
 # =========================================================
 
 with st.expander(
-    "LSTM Prediction Details"
+    "Prediction Details"
 ):
 
     st.write(
@@ -376,37 +470,41 @@ with st.expander(
     )
 
     st.write(
-    f"Selected model: {selected_model}"
-)
-
-st.write(
-    f"Prediction input: {prediction_input_description}"
-)
-
-if selected_model == "LSTM":
-
-    st.write(
-        f"Number of LSTM features: {len(lstm_features)}"
+        f"Selected model: {selected_model}"
     )
 
     st.write(
-        f"LSTM input shape: {X_engine.shape}"
+        f"Prediction input: {prediction_input_description}"
     )
 
-    st.write(
-        "Model file: models/lstm_final.keras"
-    )
+    if selected_model == "LSTM":
 
-else:
+        st.write(
+            f"Number of LSTM features: {len(lstm_features)}"
+        )
 
-    st.write(
-        f"Random Forest input shape: {X_test_rf.shape}"
-    )
+        st.write(
+            f"LSTM input shape: {X_engine.shape}"
+        )
 
-    st.write(
-        "Model file: models/random_forest.pkl"
-    )
+        st.write(
+            "Model file: models/lstm_final.keras"
+        )
 
-    st.write(
-        "Prediction generated using the saved trained model."
-    )
+        st.write(
+            "Prediction generated using the saved trained LSTM model."
+        )
+
+    else:
+
+        st.write(
+            f"Random Forest input shape: {X_test_rf.shape}"
+        )
+
+        st.write(
+            "Model file: models/random_forest.pkl"
+        )
+
+        st.write(
+            "Prediction generated using the saved trained Random Forest model."
+        )
