@@ -694,6 +694,157 @@ st.info(
     "always outperform Random Forest on every dataset."
 )
 # =========================================================
+# OVERALL ACTUAL VS PREDICTED RUL
+# =========================================================
+
+st.header("Overall Actual vs Predicted RUL")
+
+st.write(
+    "This plot compares the predicted RUL with the benchmark "
+    "actual RUL for all 100 test engines."
+)
+
+
+# =========================================================
+# GENERATE PREDICTIONS FOR ALL TEST ENGINES
+# =========================================================
+
+if selected_model == "LSTM":
+
+    all_engine_sequences = []
+
+    for engine_id in sorted_engine_ids:
+
+        current_engine_data = (
+            test[
+                test["unit"] == engine_id
+            ]
+            .sort_values("cycle")
+            .copy()
+        )
+
+        current_sequence = create_engine_sequence(
+            current_engine_data,
+            lstm_features,
+            window=30
+        )
+
+        all_engine_sequences.append(
+            current_sequence[0]
+        )
+
+    X_all_lstm = np.stack(
+        all_engine_sequences,
+        axis=0
+    )
+
+    if X_all_lstm.shape != (
+        len(sorted_engine_ids),
+        30,
+        18
+    ):
+
+        st.error(
+            f"Unexpected overall LSTM input shape: "
+            f"{X_all_lstm.shape}. "
+            f"Expected "
+            f"({len(sorted_engine_ids)}, 30, 18)."
+        )
+
+        st.stop()
+
+    all_predictions = (
+        lstm_model.predict(
+            X_all_lstm,
+            verbose=0
+        )
+        .flatten()
+    )
+
+
+else:
+
+    # -----------------------------------------------------
+    # RANDOM FOREST PREDICTIONS FOR ALL TEST ENGINES
+    # -----------------------------------------------------
+
+    all_predictions = (
+        rf_model.predict(
+            X_test_rf
+        )
+        .flatten()
+    )
+
+
+# =========================================================
+# CREATE COMPARISON DATA
+# =========================================================
+
+overall_comparison = pd.DataFrame(
+    {
+        "Engine": sorted_engine_ids,
+        "Actual RUL": [
+            actual_rul_map[engine_id]
+            for engine_id in sorted_engine_ids
+        ],
+        "Predicted RUL": all_predictions
+    }
+)
+
+
+# =========================================================
+# CREATE SCATTER PLOT
+# =========================================================
+
+max_rul_value = max(
+    overall_comparison["Actual RUL"].max(),
+    overall_comparison["Predicted RUL"].max()
+)
+
+comparison_plot = px.scatter(
+    overall_comparison,
+    x="Actual RUL",
+    y="Predicted RUL",
+    hover_data=["Engine"],
+    title=f"{selected_model}: Actual vs Predicted RUL",
+    labels={
+        "Actual RUL": "Actual RUL (cycles)",
+        "Predicted RUL": "Predicted RUL (cycles)"
+    }
+)
+
+
+# Add ideal prediction line:
+# Predicted RUL = Actual RUL
+
+comparison_plot.add_shape(
+    type="line",
+    x0=0,
+    y0=0,
+    x1=max_rul_value,
+    y1=max_rul_value,
+    line=dict(
+        dash="dash"
+    )
+)
+
+
+comparison_plot.update_layout(
+    hovermode="closest"
+)
+
+
+st.plotly_chart(
+    comparison_plot,
+    use_container_width=True
+)
+
+
+st.caption(
+    "Points closer to the diagonal line indicate predictions "
+    "closer to the benchmark actual RUL."
+)
+# =========================================================
 # PREDICTION DETAILS
 # =========================================================
 
