@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 import joblib
+import plotly.express as px
 
 from src.preprocessing import preprocess_data
 
@@ -209,6 +210,19 @@ lstm_features = [
 
 
 # =========================================================
+# SENSOR LIST
+# =========================================================
+
+sensor_columns = [
+    column
+    for column in test.columns
+    if column.startswith("sensor_")
+    and not column.endswith("_smooth")
+    and "_rolling_" not in column
+]
+
+
+# =========================================================
 # PROJECT SUMMARY
 # =========================================================
 
@@ -359,9 +373,6 @@ else:
 # =========================================================
 # ACTUAL RUL / BENCHMARK RUL
 # =========================================================
-
-# RUL_FD001.txt contains one RUL value for each test engine.
-# Map the values explicitly to sorted engine IDs.
 
 sorted_engine_ids = sorted(
     test["unit"].unique()
@@ -550,7 +561,49 @@ st.info(
 
 
 # =========================================================
-# DEBUG / PIPELINE INFORMATION
+# SENSOR TRENDS
+# =========================================================
+
+st.header("Sensor Trends")
+
+st.write(
+    "Explore how an individual sensor changes across the "
+    "operating cycles of the selected engine."
+)
+
+selected_sensor = st.selectbox(
+    "Select a sensor",
+    sensor_columns
+)
+
+sensor_plot_data = engine_data[
+    ["cycle", selected_sensor]
+].copy()
+
+sensor_plot = px.line(
+    sensor_plot_data,
+    x="cycle",
+    y=selected_sensor,
+    markers=True,
+    title=f"{selected_sensor} Trend — Engine {selected_engine}",
+    labels={
+        "cycle": "Operating Cycle",
+        selected_sensor: "Sensor Value"
+    }
+)
+
+sensor_plot.update_layout(
+    hovermode="x unified"
+)
+
+st.plotly_chart(
+    sensor_plot,
+    use_container_width=True
+)
+
+
+# =========================================================
+# PREDICTION DETAILS
 # =========================================================
 
 with st.expander(
