@@ -601,7 +601,98 @@ st.plotly_chart(
     use_container_width=True
 )
 
+# =========================================================
+# MODEL PERFORMANCE COMPARISON
+# =========================================================
 
+st.header("Model Performance Comparison")
+
+st.write(
+    "The following results are the documented evaluation results "
+    "of the trained models on the NASA C-MAPSS FD001 test set."
+)
+
+performance_data = pd.DataFrame(
+    {
+        "Model": [
+            "Random Forest",
+            "LSTM"
+        ],
+        "MAE": [
+            13.63,
+            10.63
+        ],
+        "RMSE": [
+            18.82,
+            15.24
+        ],
+        "PHM08 Score": [
+            662.92,
+            355.81
+        ]
+    }
+)
+
+st.dataframe(
+    performance_data,
+    use_container_width=True,
+    hide_index=True
+)
+
+
+# =========================================================
+# PERFORMANCE METRICS
+# =========================================================
+
+st.subheader("Documented Evaluation Metrics")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+
+    st.metric(
+        "LSTM MAE",
+        "10.63"
+    )
+
+    st.caption(
+        "Mean Absolute Error"
+    )
+
+with col2:
+
+    st.metric(
+        "LSTM RMSE",
+        "15.24"
+    )
+
+    st.caption(
+        "Root Mean Squared Error"
+    )
+
+with col3:
+
+    st.metric(
+        "LSTM PHM08",
+        "355.81"
+    )
+
+    st.caption(
+        "NASA/PHM08 scoring metric"
+    )
+
+
+# =========================================================
+# MODEL COMPARISON EXPLANATION
+# =========================================================
+
+st.info(
+    "On the documented NASA C-MAPSS FD001 test-set evaluation, "
+    "the LSTM produced lower MAE, RMSE, and PHM08 values than "
+    "the Random Forest baseline. These results describe this "
+    "specific FD001 evaluation and do not imply that LSTM will "
+    "always outperform Random Forest on every dataset."
+)
 # =========================================================
 # PREDICTION DETAILS
 # =========================================================
