@@ -357,6 +357,42 @@ else:
 
 
 # =========================================================
+# ACTUAL RUL / BENCHMARK RUL
+# =========================================================
+
+# RUL_FD001.txt contains one RUL value for each test engine.
+# Map the values explicitly to sorted engine IDs.
+
+sorted_engine_ids = sorted(
+    test["unit"].unique()
+)
+
+actual_rul_map = dict(
+    zip(
+        sorted_engine_ids,
+        rul["RUL"].to_numpy()
+    )
+)
+
+actual_rul = float(
+    actual_rul_map[selected_engine]
+)
+
+
+# =========================================================
+# PREDICTION ERROR
+# =========================================================
+
+prediction_error = (
+    predicted_rul - actual_rul
+)
+
+absolute_error = abs(
+    prediction_error
+)
+
+
+# =========================================================
 # MAINTENANCE STATUS
 # =========================================================
 
@@ -398,6 +434,66 @@ with col4:
         "Maintenance Status",
         maintenance_status
     )
+
+
+# =========================================================
+# ACTUAL VS PREDICTED RUL
+# =========================================================
+
+st.subheader(
+    "RUL Comparison"
+)
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+
+    st.metric(
+        "Predicted RUL",
+        f"{predicted_rul:.2f} cycles"
+    )
+
+with col2:
+
+    st.metric(
+        "Actual RUL",
+        f"{actual_rul:.2f} cycles"
+    )
+
+with col3:
+
+    st.metric(
+        "Absolute Prediction Error",
+        f"{absolute_error:.2f} cycles"
+    )
+
+
+if prediction_error > 0:
+
+    st.info(
+        f"The model overestimated the RUL by "
+        f"{prediction_error:.2f} cycles."
+    )
+
+elif prediction_error < 0:
+
+    st.info(
+        f"The model underestimated the RUL by "
+        f"{abs(prediction_error):.2f} cycles."
+    )
+
+else:
+
+    st.success(
+        "The predicted RUL exactly matches the benchmark RUL."
+    )
+
+
+st.caption(
+    "Actual RUL is available here because this is a benchmark "
+    "test dataset. In a real deployment, future RUL would not "
+    "be known at prediction time."
+)
 
 
 # =========================================================
@@ -475,6 +571,14 @@ with st.expander(
 
     st.write(
         f"Prediction input: {prediction_input_description}"
+    )
+
+    st.write(
+        f"Benchmark actual RUL: {actual_rul:.2f} cycles"
+    )
+
+    st.write(
+        f"Prediction error: {prediction_error:.2f} cycles"
     )
 
     if selected_model == "LSTM":
