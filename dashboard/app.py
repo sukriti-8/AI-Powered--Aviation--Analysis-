@@ -9,6 +9,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import tensorflow as tf
+import joblib
 
 from src.preprocessing import preprocess_data
 
@@ -50,7 +51,18 @@ def load_lstm_model():
     return tf.keras.models.load_model(
         model_path,
         compile=False
-    )
+    ) 
+#rf
+@st.cache_resource
+def load_rf_model():
+    """
+    Load the already-trained Random Forest model.
+
+    The model is NOT retrained when the dashboard starts.
+    """
+    model_path = PROJECT_ROOT / "models" / "random_forest.pkl"
+
+    return joblib.load(model_path)
 
 
 # =========================================================
@@ -129,7 +141,7 @@ st.write(
 # =========================================================
 
 with st.spinner(
-    "Loading project data and trained LSTM model..."
+    "Loading project data and trained models..."
 ):
 
     (
@@ -142,6 +154,7 @@ with st.spinner(
     ) = load_processed_data()
 
     lstm_model = load_lstm_model()
+    rf_model = load_rf_model()
 
 
 # =========================================================
@@ -209,7 +222,10 @@ selected_engine = st.selectbox(
     "Select an aircraft engine",
     engine_ids
 )
-
+selected_model = st.selectbox(
+    "Select prediction model",
+    ["LSTM", "Random Forest"]
+)
 
 # =========================================================
 # SELECT ENGINE DATA
@@ -229,43 +245,78 @@ latest_cycle = int(
 
 
 # =========================================================
-# CREATE LSTM INPUT
+# GENERATE MODEL PREDICTION
 # =========================================================
 
-X_engine = create_engine_sequence(
-    engine_data,
-    lstm_features,
-    window=30
-)
+if selected_model == "LSTM":
 
+    # -----------------------------------------------------
+    # LSTM: latest 30 cycles × 18 features
+    # -----------------------------------------------------
 
-# =========================================================
-# VALIDATE LSTM INPUT
-# =========================================================
-
-if X_engine.shape != (1, 30, 18):
-
-    st.error(
-        f"Unexpected LSTM input shape: {X_engine.shape}. "
-        "Expected (1, 30, 18)."
+    X_engine = create_engine_sequence(
+        engine_data,
+        lstm_features,
+        window=30
     )
 
-    st.stop()
+    if X_engine.shape != (1, 30, 18):
+
+        st.error(
+            f"Unexpected LSTM input shape: {X_engine.shape}. "
+            "Expected (1, 30, 18)."
+        )
+
+        st.stop()
+
+    prediction = lstm_model.predict(
+        X_engine,
+        verbose=0
+    )
+
+    predicted_rul = float(
+        prediction.flatten()[0]
+    )
+
+    prediction_input_description = (
+        "Latest 30 cycles × 18 LSTM features"
+    )
 
 
-# =========================================================
-# GENERATE REAL LSTM PREDICTION
-# =========================================================
+else:
 
-prediction = lstm_model.predict(
-    X_engine,
-    verbose=0
-)
+    # -----------------------------------------------------
+    # RANDOM FOREST: existing engineered RF features
+    # -----------------------------------------------------
 
-predicted_rul = float(
-    prediction.flatten()[0]
-)
+    test_last = (
+        test
+        .sort_values(["unit", "cycle"])
+        .groupby("unit")
+        .tail(1)
+        .sort_values("unit")
+    )
 
+    X_test_rf = test_last.drop(
+        columns=["unit"]
+    )
+
+    rf_prediction = rf_model.predict(
+        X_test_rf
+    )
+
+    engine_position = (
+        sorted(test["unit"].unique())
+        .index(selected_engine)
+    )
+
+    predicted_rul = float(
+        rf_prediction[engine_position]
+    )
+
+    prediction_input_description = (
+        "Existing engineered Random Forest features"
+    )
 
 # =========================================================
 # ENGINE INFORMATION
@@ -300,10 +351,11 @@ with col3:
 # =========================================================
 
 st.info(
-    f"The LSTM estimates that Engine {selected_engine} "
-    f"has approximately {predicted_rul:.2f} operating cycles "
-    "of useful life remaining based on its latest 30 observed "
-    "cycles and 18 selected features."
+    f"The {selected_model} estimates that Engine "
+    f"{selected_engine} has approximately "
+    f"{predicted_rul:.2f} operating cycles of useful life "
+    "remaining based on the project's trained model and "
+    "existing preprocessing pipeline."
 )
 
 
@@ -324,6 +376,16 @@ with st.expander(
     )
 
     st.write(
+    f"Selected model: {selected_model}"
+)
+
+st.write(
+    f"Prediction input: {prediction_input_description}"
+)
+
+if selected_model == "LSTM":
+
+    st.write(
         f"Number of LSTM features: {len(lstm_features)}"
     )
 
@@ -333,6 +395,16 @@ with st.expander(
 
     st.write(
         "Model file: models/lstm_final.keras"
+    )
+
+else:
+
+    st.write(
+        f"Random Forest input shape: {X_test_rf.shape}"
+    )
+
+    st.write(
+        "Model file: models/random_forest.pkl"
     )
 
     st.write(
