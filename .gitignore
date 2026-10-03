@@ -2,7 +2,4 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
-.envdata/raw/
-data/raw/
-models/
-
+.env
